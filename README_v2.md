@@ -431,6 +431,732 @@ curl -X POST http://localhost:8000/simple-search \
 
 ---
 
+## Comprehensive Examples
+
+### 1. Health Check Endpoint
+
+The health check endpoint verifies that the API and all its dependencies are operational.
+
+#### Example 1.1: Basic Health Check
+
+**Request:**
+```bash
+curl -X GET "http://localhost:8000/health"
+```
+
+**Response (All Services OK):**
+```json
+{
+  "status": "ok",
+  "services": {
+    "qdrant": "ok",
+    "ollama": "ok"
+  }
+}
+```
+
+**Response (Service Offline):**
+```json
+{
+  "status": "ok",
+  "services": {
+    "qdrant": "offline",
+    "ollama": "ok"
+  }
+}
+```
+
+**Use Case**: Call this endpoint before making search requests to ensure all services are available. Useful for monitoring and health checks in production.
+
+---
+
+### 2. Standard Search Endpoint (with Context)
+
+The `/search` endpoint performs semantic search with intelligent context retrieval and deduplication.
+
+#### Example 2.1: Simple Search with Single Query
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "research_papers",
+    "search_queries": ["machine learning applications in healthcare"],
+    "limit": 3,
+    "embedding_model": "mxbai-embed-large"
+  }'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    [
+      {
+        "filename": "healthcare_ml_2023.pdf",
+        "score": 0.92,
+        "center_page": 15,
+        "combined_page": "Machine learning has revolutionized healthcare diagnostics... [full context from pages 13-17]",
+        "page_numbers": [13, 14, 15, 16, 17]
+      },
+      {
+        "filename": "ai_medical_review.pdf",
+        "score": 0.87,
+        "center_page": 8,
+        "combined_page": "Clinical applications of AI and ML are expanding rapidly... [full context from pages 6-10]",
+        "page_numbers": [6, 7, 8, 9, 10]
+      }
+    ]
+  ]
+}
+```
+
+**Key Points:**
+- Single query in array format
+- Returns context pages (default ±5 pages)
+- Results sorted by relevance score
+- Nested array structure: outer array per query, inner array per result
+
+---
+
+#### Example 2.2: Multiple Queries in Single Request
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "technical_docs",
+    "search_queries": [
+      "API authentication methods",
+      "rate limiting strategies",
+      "error handling best practices"
+    ],
+    "limit": 2,
+    "embedding_model": "mxbai-embed-large",
+    "context_window_size": 2
+  }'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    [
+      {
+        "filename": "api_security_guide.pdf",
+        "score": 0.95,
+        "center_page": 12,
+        "combined_page": "OAuth 2.0 and JWT are the most common authentication methods... [context from pages 11-13]",
+        "page_numbers": [11, 12, 13]
+      }
+    ],
+    [
+      {
+        "filename": "api_design_patterns.pdf",
+        "score": 0.89,
+        "center_page": 25,
+        "combined_page": "Rate limiting can be implemented using token bucket algorithm... [context from pages 24-26]",
+        "page_numbers": [24, 25, 26]
+      }
+    ],
+    [
+      {
+        "filename": "error_handling_guide.pdf",
+        "score": 0.91,
+        "center_page": 8,
+        "combined_page": "Proper error handling includes validation, logging, and user-friendly messages... [context from pages 7-9]",
+        "page_numbers": [7, 8, 9]
+      }
+    ]
+  ]
+}
+```
+
+**Key Points:**
+- Three separate queries processed in one request
+- Each query gets its own result array
+- Smaller context window (±2 pages)
+- More efficient than three separate API calls
+
+---
+
+#### Example 2.3: Search with Text Filter (Single Value)
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "company_documents",
+    "search_queries": ["quarterly revenue growth"],
+    "filter": {
+      "metadata.document_type": {
+        "match_text": "financial_report"
+      }
+    },
+    "limit": 5,
+    "embedding_model": "mxbai-embed-large"
+  }'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    [
+      {
+        "filename": "Q3_2023_Financial_Report.pdf",
+        "score": 0.93,
+        "center_page": 18,
+        "combined_page": "Q3 revenue reached $2.5B, representing 15% YoY growth... [context]",
+        "page_numbers": [16, 17, 18, 19, 20]
+      }
+    ]
+  ]
+}
+```
+
+**Key Points:**
+- Filters results to only financial_report documents
+- Single text value filter
+- Only matching documents returned
+
+---
+
+#### Example 2.4: Search with Text Filter (Multiple Values - OR Logic)
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "knowledge_base",
+    "search_queries": ["deployment strategies"],
+    "filter": {
+      "metadata.category": {
+        "match_text": ["devops", "infrastructure", "cloud"]
+      }
+    },
+    "limit": 4,
+    "embedding_model": "bge-m3"
+  }'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    [
+      {
+        "filename": "kubernetes_deployment.md",
+        "score": 0.94,
+        "center_page": 5,
+        "combined_page": "Kubernetes provides orchestration for containerized deployments... [context]",
+        "page_numbers": [3, 4, 5, 6, 7]
+      },
+      {
+        "filename": "aws_deployment_guide.md",
+        "score": 0.88,
+        "center_page": 12,
+        "combined_page": "AWS offers multiple deployment options including EC2, ECS, and Lambda... [context]",
+        "page_numbers": [10, 11, 12, 13, 14]
+      },
+      {
+        "filename": "docker_best_practices.md",
+        "score": 0.85,
+        "center_page": 8,
+        "combined_page": "Docker containers enable consistent deployment across environments... [context]",
+        "page_numbers": [6, 7, 8, 9, 10]
+      }
+    ]
+  ]
+}
+```
+
+**Key Points:**
+- Array of text values acts as OR condition
+- Returns documents matching ANY of the categories
+- Useful for broad searches across multiple categories
+
+---
+
+#### Example 2.5: Search with Value Filter (Numeric)
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "research_papers",
+    "search_queries": ["neural network optimization"],
+    "filter": {
+      "metadata.publication_year": {
+        "match_value": 2023
+      },
+      "metadata.citation_count": {
+        "match_value": [50, 100, 150]
+      }
+    },
+    "limit": 3,
+    "embedding_model": "bge-m3"
+  }'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    [
+      {
+        "filename": "deep_learning_2023_survey.pdf",
+        "score": 0.96,
+        "center_page": 22,
+        "combined_page": "Recent advances in neural network optimization include adaptive learning rates... [context]",
+        "page_numbers": [20, 21, 22, 23, 24]
+      },
+      {
+        "filename": "transformer_optimization_2023.pdf",
+        "score": 0.91,
+        "center_page": 15,
+        "combined_page": "Transformer models benefit from gradient accumulation and mixed precision training... [context]",
+        "page_numbers": [13, 14, 15, 16, 17]
+      }
+    ]
+  ]
+}
+```
+
+**Key Points:**
+- Filters by exact year (2023)
+- Filters by citation count (50, 100, or 150)
+- Combines multiple value filters with AND logic
+- Useful for finding highly-cited recent papers
+
+---
+
+#### Example 2.6: Search with Custom Context Window
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "legal_documents",
+    "search_queries": ["intellectual property rights"],
+    "limit": 2,
+    "context_window_size": 10,
+    "embedding_model": "mxbai-embed-large"
+  }'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    [
+      {
+        "filename": "patent_law_guide.pdf",
+        "score": 0.94,
+        "center_page": 45,
+        "combined_page": "Intellectual property includes patents, trademarks, and copyrights... [full context from pages 35-55, 21 pages total]",
+        "page_numbers": [35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55]
+      }
+    ]
+  ]
+}
+```
+
+**Key Points:**
+- context_window_size: 10 means ±10 pages (21 total pages)
+- Larger context window for comprehensive understanding
+- Useful for legal/technical documents needing full context
+- Trade-off: slower response but more complete information
+
+---
+
+#### Example 2.7: Search with Minimal Context Window (Fast Response)
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "news_articles",
+    "search_queries": ["technology trends"],
+    "limit": 10,
+    "context_window_size": 1,
+    "embedding_model": "mxbai-embed-large"
+  }'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    [
+      {
+        "filename": "tech_news_2024.md",
+        "score": 0.89,
+        "center_page": 3,
+        "combined_page": "AI and machine learning continue to dominate technology trends... [context from pages 2-4]",
+        "page_numbers": [2, 3, 4]
+      },
+      {
+        "filename": "innovation_report.md",
+        "score": 0.85,
+        "center_page": 7,
+        "combined_page": "Cloud computing and edge computing are reshaping infrastructure... [context from pages 6-8]",
+        "page_numbers": [6, 7, 8]
+      }
+    ]
+  ]
+}
+```
+
+**Key Points:**
+- context_window_size: 1 means ±1 page (3 total pages)
+- Minimal context for quick responses
+- Useful for real-time applications
+- Faster processing and smaller response payload
+
+---
+
+#### Example 2.8: Complex Multi-Filter Search
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "product_documentation",
+    "search_queries": ["API rate limiting configuration"],
+    "filter": {
+      "metadata.product": {
+        "match_text": ["API Gateway", "REST API"]
+      },
+      "metadata.version": {
+        "match_value": [3, 4]
+      },
+      "metadata.status": {
+        "match_text": "published"
+      }
+    },
+    "limit": 5,
+    "context_window_size": 3,
+    "embedding_model": "bge-m3"
+  }'
+```
+
+**Response:**
+```json
+{
+  "results": [
+    [
+      {
+        "filename": "api_gateway_v4_guide.pdf",
+        "score": 0.96,
+        "center_page": 28,
+        "combined_page": "Rate limiting configuration in API Gateway v4 supports token bucket and sliding window algorithms... [context from pages 25-31]",
+        "page_numbers": [25, 26, 27, 28, 29, 30, 31]
+      },
+      {
+        "filename": "rest_api_v3_docs.pdf",
+        "score": 0.91,
+        "center_page": 15,
+        "combined_page": "REST API v3 implements rate limiting through headers and quota management... [context from pages 12-18]",
+        "page_numbers": [12, 13, 14, 15, 16, 17, 18]
+      }
+    ]
+  ]
+}
+```
+
+**Key Points:**
+- Multiple filters combined with AND logic
+- Text filters with arrays (OR within filter)
+- Value filters with arrays (OR within filter)
+- All filters must match for document to be included
+- Most powerful search capability
+
+---
+
+### 3. Simple Search Endpoint (Lightweight)
+
+The `/simple-search` endpoint performs fast semantic search without context retrieval, ideal for quick lookups.
+
+#### Example 3.1: Basic Simple Search
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/simple-search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "knowledge_base",
+    "queries": ["containerization best practices"],
+    "limit": 3,
+    "embedding_model": "mxbai-embed-large"
+  }'
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "queries": ["containerization best practices"],
+  "total_results": 3,
+  "hits": [
+    {
+      "id": "doc_001",
+      "score": 0.94,
+      "payload": {
+        "pagecontent": "Always use specific version tags for container images rather than 'latest' to ensure reproducibility and prevent unexpected changes.",
+        "metadata": {
+          "filename": "docker_guidelines.md",
+          "page_number": 15,
+          "category": "devops",
+          "author": "DevOps Team"
+        }
+      },
+      "matching_query": "containerization best practices"
+    },
+    {
+      "id": "doc_002",
+      "score": 0.88,
+      "payload": {
+        "pagecontent": "Multi-stage Docker builds reduce image size and improve security by minimizing attack surface.",
+        "metadata": {
+          "filename": "container_security.md",
+          "page_number": 22,
+          "category": "security"
+        }
+      },
+      "matching_query": "containerization best practices"
+    },
+    {
+      "id": "doc_003",
+      "score": 0.82,
+      "payload": {
+        "pagecontent": "Container orchestration platforms like Kubernetes manage deployment, scaling, and networking.",
+        "metadata": {
+          "filename": "kubernetes_intro.md",
+          "page_number": 8,
+          "category": "orchestration"
+        }
+      },
+      "matching_query": "containerization best practices"
+    }
+  ]
+}
+```
+
+**Key Points:**
+- No context retrieval (single page only)
+- Faster response than standard search
+- Results sorted by relevance score
+- Includes matching_query field
+- Ideal for quick lookups and real-time applications
+
+---
+
+#### Example 3.2: Multiple Queries with Simple Search
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/simple-search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "support_documentation",
+    "queries": [
+      "kubernetes troubleshooting",
+      "pod networking issues",
+      "persistent volume setup"
+    ],
+    "limit": 2,
+    "embedding_model": "bge-m3"
+  }'
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "queries": [
+    "kubernetes troubleshooting",
+    "pod networking issues",
+    "persistent volume setup"
+  ],
+  "total_results": 5,
+  "hits": [
+    {
+      "id": "k8s_001",
+      "score": 0.96,
+      "payload": {
+        "pagecontent": "Use kubectl describe pod to diagnose pod issues. Check events, resource limits, and node status.",
+        "metadata": {
+          "filename": "k8s_troubleshooting.md",
+          "page_number": 12,
+          "section": "Pod Diagnostics"
+        }
+      },
+      "matching_query": "kubernetes troubleshooting"
+    },
+    {
+      "id": "k8s_002",
+      "score": 0.93,
+      "payload": {
+        "pagecontent": "Network policies control traffic between pods. Use selectors to define ingress and egress rules.",
+        "metadata": {
+          "filename": "k8s_networking.md",
+          "page_number": 35,
+          "section": "Network Policies"
+        }
+      },
+      "matching_query": "pod networking issues"
+    },
+    {
+      "id": "k8s_003",
+      "score": 0.91,
+      "payload": {
+        "pagecontent": "PersistentVolumes (PV) and PersistentVolumeClaims (PVC) manage storage. PVs are cluster resources, PVCs are namespace-scoped.",
+        "metadata": {
+          "filename": "k8s_storage.md",
+          "page_number": 18,
+          "section": "Storage Management"
+        }
+      },
+      "matching_query": "persistent volume setup"
+    },
+    {
+      "id": "k8s_004",
+      "score": 0.87,
+      "payload": {
+        "pagecontent": "Service mesh tools like Istio provide advanced networking capabilities including traffic management and security policies.",
+        "metadata": {
+          "filename": "k8s_advanced.md",
+          "page_number": 42,
+          "section": "Service Mesh"
+        }
+      },
+      "matching_query": "kubernetes troubleshooting"
+    },
+    {
+      "id": "k8s_005",
+      "score": 0.84,
+      "payload": {
+        "pagecontent": "StatefulSets maintain persistent identity for pods, useful for databases and stateful applications with persistent storage.",
+        "metadata": {
+          "filename": "k8s_stateful.md",
+          "page_number": 25,
+          "section": "Stateful Applications"
+        }
+      },
+      "matching_query": "persistent volume setup"
+    }
+  ]
+}
+```
+
+**Key Points:**
+- Three queries processed in one request
+- Results aggregated and deduplicated
+- Sorted by score across all queries
+- Shows which query matched each result
+- Total count includes all unique results
+
+---
+
+#### Example 3.3: Simple Search with Different Embedding Model
+
+**Request:**
+```bash
+curl -X POST "http://localhost:8000/simple-search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "research_papers",
+    "queries": ["quantum computing applications"],
+    "limit": 4,
+    "embedding_model": "bge-m3"
+  }'
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "queries": ["quantum computing applications"],
+  "total_results": 4,
+  "hits": [
+    {
+      "id": "quantum_001",
+      "score": 0.97,
+      "payload": {
+        "pagecontent": "Quantum computers excel at optimization problems, drug discovery, and cryptography. Quantum annealing solves combinatorial optimization.",
+        "metadata": {
+          "filename": "quantum_applications_2024.pdf",
+          "page_number": 45,
+          "publication_year": 2024,
+          "citations": 156
+        }
+      },
+      "matching_query": "quantum computing applications"
+    },
+    {
+      "id": "quantum_002",
+      "score": 0.94,
+      "payload": {
+        "pagecontent": "Quantum machine learning leverages quantum circuits for classification and regression tasks with potential speedup.",
+        "metadata": {
+          "filename": "qml_survey.pdf",
+          "page_number": 28,
+          "publication_year": 2023,
+          "citations": 89
+        }
+      },
+      "matching_query": "quantum computing applications"
+    },
+    {
+      "id": "quantum_003",
+      "score": 0.91,
+      "payload": {
+        "pagecontent": "Quantum simulation enables studying quantum systems that are intractable for classical computers.",
+        "metadata": {
+          "filename": "quantum_simulation_guide.pdf",
+          "page_number": 12,
+          "publication_year": 2023,
+          "citations": 67
+        }
+      },
+      "matching_query": "quantum computing applications"
+    },
+    {
+      "id": "quantum_004",
+      "score": 0.88,
+      "payload": {
+        "pagecontent": "Quantum error correction is crucial for practical quantum computers. Surface codes and topological codes are promising approaches.",
+        "metadata": {
+          "filename": "quantum_error_correction.pdf",
+          "page_number": 33,
+          "publication_year": 2024,
+          "citations": 45
+        }
+      },
+      "matching_query": "quantum computing applications"
+    }
+  ]
+}
+```
+
+**Key Points:**
+- Uses bge-m3 embedding model (higher quality)
+- Better semantic understanding
+- Slightly slower than mxbai-embed-large
+- Trade-off: accuracy vs speed
+- Choose model based on requirements
+
+---
+
 ## Advanced Usage
 
 ### Filtering Guide
