@@ -39,6 +39,10 @@ QDRANT_HOST = os.getenv("QDRANT_HOST", "192.168.153.47")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "192.168.153.46")
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
 CONTEXT_WINDOW_SIZE = int(os.getenv("CONTEXT_WINDOW_SIZE", "5"))
+
+# Embedding configuration
+DEFAULT_EMBEDDING_MODEL = os.getenv("DEFAULT_EMBEDDING_MODEL", "mxbai-embed-large")
+DEFAULT_VECTOR_SIZE = int(os.getenv("DEFAULT_VECTOR_SIZE", "1024"))
 # ===============================
 
 # ======== Logging Setup ========
@@ -316,22 +320,22 @@ class SearchSystem:
             self.qclient.create_collection(
                 collection_name=self.collection_name,
                 vectors_config=models.VectorParams(
-                    size=1024,
+                    size=DEFAULT_VECTOR_SIZE,
                     distance=models.Distance.COSINE
                 )
             )
-            logger.info(f"Created collection '{self.collection_name}'")
+            logger.info(f"Created collection '{self.collection_name}' with vector size {DEFAULT_VECTOR_SIZE}")
 
-    def _validate_payload(self, payload: Dict) -> bool:
+    def _has_page_structure(self, payload: Dict) -> bool:
+        """Check if payload has page-based structure (non-strict validation)"""
         try:
-            return all([
-                isinstance(payload.get("pagecontent"), str),
-                isinstance(payload.get("metadata"), dict),
-                isinstance(payload["metadata"].get("filename"), str),
-                isinstance(payload["metadata"].get("page_number"), int),
-                0 <= payload["metadata"]["page_number"] <= 1000
-            ])
-        except KeyError:
+            return (
+                "metadata" in payload and
+                "filename" in payload.get("metadata", {}) and
+                "page_number" in payload.get("metadata", {}) and
+                isinstance(payload["metadata"]["page_number"], int)
+            )
+        except (KeyError, TypeError):
             return False
 
     def _get_context_pages(self, filename: str, center_page_number: int) -> List[Dict]:
@@ -364,7 +368,7 @@ class SearchSystem:
             
             return sorted([p.payload 
                            for p in points 
-                           if self._validate_payload(p.payload)],
+                           if self._has_page_structure(p.payload)],
                           key=lambda x: x["metadata"]["page_number"])
         except Exception as e:
             logger.error(f"Context retrieval failed for page {center_page_number}: {str(e)}")
@@ -541,21 +545,50 @@ class SearchSystem:
                 query_results = []
                 for scored_point in query_response.points:
                     payload = scored_point.payload
-                    if not self._validate_payload(payload):
-                        continue
                     
-                    context_pages = self._get_context_pages(
-                        filename=payload["metadata"]["filename"],
-                        center_page_number=payload["metadata"]["page_number"]
+                    # Detect collection type based on payload structure
+                    has_page_structure = (
+                        "metadata" in payload and
+                        "filename" in payload.get("metadata", {}) and
+                        "page_number" in payload.get("metadata", {})
                     )
-                    page_numbers = [p["metadata"]["page_number"] for p in context_pages]
-                    result = {
-                        "filename": payload["metadata"]["filename"],
-                        "score": scored_point.score,
-                        "center_page": payload["metadata"]["page_number"],
-                        "combined_page": " ".join(p["pagecontent"] for p in context_pages),
-                        "page_numbers": page_numbers[:11]
-                    }
+                    
+                    if has_page_structure:
+                        # Page-based content collection (e.g., "content")
+                        try:
+                            context_pages = self._get_context_pages(
+                                filename=payload["metadata"]["filename"],
+                                center_page_number=payload["metadata"]["page_number"]
+                            )
+                            page_numbers = [p["metadata"]["page_number"] for p in context_pages]
+                            result = {
+                                "filename": payload["metadata"]["filename"],
+                                "score": scored_point.score,
+                                "center_page": payload["metadata"]["page_number"],
+                                "combined_page": " ".join(p.get("pagecontent", "") for p in context_pages),
+                                "page_numbers": page_numbers[:11]
+                            }
+                        except (KeyError, TypeError) as e:
+                            logger.warning(f"Skipping malformed page-based payload: {str(e)}")
+                            continue
+                    else:
+                        # Generic/flexible collection structure - return all fields
+                        result = {
+                            "score": scored_point.score,
+                            "payload": payload  # Return entire payload as-is
+                        }
+                        # Add common fields if they exist
+                        if "source" in payload:
+                            result["filename"] = payload["source"]
+                        elif "pagecontent" in payload:
+                            result["filename"] = payload["pagecontent"]
+                        
+                        if "pagecontent" in payload:
+                            result["content"] = payload["pagecontent"]
+                        
+                        if "metadata" in payload:
+                            result["metadata"] = payload["metadata"]
+                    
                     query_results.append(result)
                 results.append(query_results)
             
@@ -578,7 +611,7 @@ class SearchRequest(BaseModel):
     collection_name: str = Field(..., min_length=1, description="Name of the Qdrant collection")
     search_queries: List[str] = Field(..., min_items=1, description="List of search queries")
     filter: Optional[Dict[str, Dict[str, Any]]] = Field(None, description="Filter conditions. Each key is a metadata field path, value is a dict with 'match_text', 'match_value', 'gte', or 'lte'. Values can be single values or arrays for OR logic.")
-    embedding_model: Optional[str] = Field(default="mxbai-embed-large", description="Ollama embedding model name")
+    embedding_model: Optional[str] = Field(default=DEFAULT_EMBEDDING_MODEL, description="Ollama embedding model name")
     limit: Optional[conint(ge=1)] = Field(default=5, description="Maximum number of results per query")
     context_window_size: Optional[conint(ge=0)] = Field(default=None, description="Number of pages before/after match to retrieve. Overrides CONTEXT_WINDOW_SIZE env var.")
     use_production: Optional[bool] = Field(default=False, description="Use production environment configuration (PROD_* variables)")

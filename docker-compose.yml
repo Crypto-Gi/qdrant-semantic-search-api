@@ -3,7 +3,7 @@ services:
     build: ./app
     env_file: .env
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - QDRANT_HOST=${QDRANT_HOST}
       - OLLAMA_HOST=${OLLAMA_HOST}
