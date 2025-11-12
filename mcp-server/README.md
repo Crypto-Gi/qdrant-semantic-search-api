@@ -424,14 +424,22 @@ cp .env.example .env
 
 ## 📁 Files
 
+### Core Files
 - `server.py` - Main MCP server with 5 tools
 - `config.py` - Configuration management
 - `requirements.txt` - Python dependencies
+- `.env.example` - Configuration template
+
+### Deployment Files
 - `Dockerfile` - Docker image definition
 - `docker-compose.yml` - Docker orchestration
-- `.env.example` - Configuration template
-- `DEPLOYMENT.md` - Complete deployment guide
-- `DESIGN.md` - Architecture and design docs
+
+### Documentation
+- `INSTALL.md` - **Installation guide for Windsurf**
+- `TOOL_USAGE.md` - **Tool usage guide for LLMs**
+- `DEPLOYMENT.md` - Deployment options and configuration
+- `DESIGN.md` - Architecture and design details
+- `README.md` - This file
 
 ---
 
