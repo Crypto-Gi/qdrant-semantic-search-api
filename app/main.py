@@ -578,20 +578,19 @@ class SearchSystem:
                             logger.warning(f"Skipping malformed page-based payload: {str(e)}")
                             continue
                     else:
-                        # Generic/flexible collection structure - return all fields
+                        # Generic/flexible collection structure (e.g., filenames)
+                        # Return clean, non-redundant fields
                         result = {
-                            "score": scored_point.score,
-                            "payload": payload  # Return entire payload as-is
+                            "score": scored_point.score
                         }
-                        # Add common fields if they exist
+                        
+                        # Extract filename from source or pagecontent
                         if "source" in payload:
                             result["filename"] = payload["source"]
                         elif "pagecontent" in payload:
                             result["filename"] = payload["pagecontent"]
                         
-                        if "pagecontent" in payload:
-                            result["content"] = payload["pagecontent"]
-                        
+                        # Add metadata if present
                         if "metadata" in payload:
                             result["metadata"] = payload["metadata"]
                     
