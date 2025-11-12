@@ -4,6 +4,9 @@
 .env.*.local
 *.env
 
+# Archive directory (old test files)
+archive/
+
 # Python
 __pycache__/
 *.py[cod]

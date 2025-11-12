@@ -330,6 +330,9 @@ class SearchSystem:
         """Check if payload has page-based structure (non-strict validation)"""
         try:
             return (
+                "pagecontent" in payload and
+                isinstance(payload.get("pagecontent"), str) and
+                len(payload.get("pagecontent", "")) > 0 and
                 "metadata" in payload and
                 "filename" in payload.get("metadata", {}) and
                 "page_number" in payload.get("metadata", {}) and
@@ -346,6 +349,8 @@ class SearchSystem:
                 lte=min(1000, center_page_number + window_size)
             )
             
+            logger.debug(f"Fetching context: file={filename}, center={center_page_number}, range={page_range.gte}-{page_range.lte}")
+            
             scroll_result = self.qclient.scroll(
                 collection_name=self.collection_name,
                 scroll_filter=models.Filter(
@@ -361,15 +366,16 @@ class SearchSystem:
                     ]
                 ),
                 with_payload=True,
-                limit=(window_size * 2) + 1
+                limit=11  # Fixed limit like old code
             )
             
-            points = scroll_result[0]  
+            points = scroll_result[0]
+            logger.debug(f"Retrieved {len(points)} points from scroll")
             
-            return sorted([p.payload 
-                           for p in points 
-                           if self._has_page_structure(p.payload)],
-                          key=lambda x: x["metadata"]["page_number"])
+            valid_pages = [p.payload for p in points if self._has_page_structure(p.payload)]
+            logger.debug(f"Valid pages after filtering: {len(valid_pages)}")
+            
+            return sorted(valid_pages, key=lambda x: x["metadata"]["page_number"])
         except Exception as e:
             logger.error(f"Context retrieval failed for page {center_page_number}: {str(e)}")
             return []
