@@ -407,11 +407,68 @@ PROD_QDRANT_API_KEY=your-api-key
 PROD_QDRANT_VERIFY_SSL=true
 ```
 
-#### Embedding Configuration
+#### Embedding Provider Configuration
+
 ```env
+# Provider: "ollama" (default) or "gemini"
+EMBEDDING_PROVIDER=ollama
+
+# Embedding model & vector size (must match Qdrant collection configuration)
 DEFAULT_EMBEDDING_MODEL=granite-embedding:30m
 DEFAULT_VECTOR_SIZE=384
+
+# Gemini configuration (only used when EMBEDDING_PROVIDER=gemini)
+GEMINI_API_KEY=
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
+GEMINI_EMBEDDING_TASK_TYPE=RETRIEVAL_QUERY
+GEMINI_EMBEDDING_DIM=768
 ```
+
+##### Choosing a Provider
+
+- **Ollama (default)**
+  - Runs embeddings locally via your Ollama server.
+  - Best when you control the infrastructure and want low external dependencies.
+- **Gemini**
+  - Uses Google Gemini Embeddings API for query-time embeddings.
+  - Set `EMBEDDING_PROVIDER=gemini` and configure the `GEMINI_*` variables.
+  - Ensure your Qdrant collection vector size matches `GEMINI_EMBEDDING_DIM` (for example, 768).
+
+#### Qdrant configuration precedence & overrides
+
+The service builds the Qdrant client using the following precedence:
+
+1. **Request parameters** (if provided):
+   - `qdrant_url`
+   - `qdrant_api_key`
+   - `qdrant_verify_ssl`
+2. **Environment-specific variables** (based on `use_production` flag):
+   - Dev: `DEV_QDRANT_URL`, `DEV_QDRANT_API_KEY`, `DEV_QDRANT_VERIFY_SSL`
+   - Prod: `PROD_QDRANT_URL`, `PROD_QDRANT_API_KEY`, `PROD_QDRANT_VERIFY_SSL`
+3. **Generic env variables**: `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_VERIFY_SSL`
+4. **Fallback**: `QDRANT_HOST` with HTTP and default SSL settings
+
+Rules:
+
+- If you set any of `qdrant_url`, `qdrant_api_key`, or `qdrant_verify_ssl` in the request body,
+  you **must not** set `use_production=true`. That combination is rejected with an error.
+- If no request-level Qdrant fields are provided, `use_production` controls whether the
+  DEV or PROD env variables are used.
+- `QDRANT_FORCE_IGNORE_SSL=true` globally disables SSL verification unless `qdrant_verify_ssl`
+  is explicitly set on the request.
+
+#### Embedding provider overrides
+
+Embedding provider selection is currently **env-only**:
+
+- `EMBEDDING_PROVIDER` (`ollama` or `gemini`) is read from the environment at startup.
+- When `EMBEDDING_PROVIDER=ollama`, the service uses the configured Ollama host/model.
+- When `EMBEDDING_PROVIDER=gemini`, the service uses the configured Gemini API key,
+  model, task type, and output dimension (`GEMINI_*` variables).
+
+There are **no request-level fields** to override the embedding provider or Gemini
+API key/model per call in this phase. All embedding configuration is controlled by
+environment variables.
 
 #### Application Settings
 ```env

@@ -13,9 +13,6 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
 import ollama
 
-# Import embedding provider abstraction
-from app.embeddings import EmbeddingProviderFactory, EmbeddingClient
-
 # ======== Configuration ========
 load_dotenv()
 
@@ -167,7 +164,6 @@ class SearchSystem:
     _qdrant_pool_dev = None
     _qdrant_pool_prod = None
     _ollama_pool = None
-    _embedding_client = None  # Singleton embedding client
 
     def __init__(self, collection_name: str, use_production: bool = False,
                  qdrant_url: Optional[str] = None, 
@@ -193,10 +189,6 @@ class SearchSystem:
             self.qclient = self._get_qdrant_client(use_production)
             self.custom_client = False
         
-        # Initialize embedding client (uses factory pattern)
-        self.embedding_client = self._get_embedding_client()
-        
-        # Keep Ollama client for backward compatibility (may be removed in future)
         self.oclient = self._get_ollama_client()
         self._ensure_collection()
 
@@ -356,41 +348,13 @@ class SearchSystem:
 
     @classmethod
     def _get_ollama_client(cls):
-        """Get pooled Ollama client (legacy - kept for backward compatibility)"""
         if cls._ollama_pool is None:
             try:
-                cls._ollama_pool = ollama.Client(host=OLLAMA_HOST)
+                cls._ollama_pool = ollama.Client(host=OLLAMA_HOST, timeout=10)
             except Exception as e:
                 logger.error(f"Ollama connection failed: {str(e)}")
-                raise EmbeddingError("Embedding service connection error")
+                raise ConnectionError("Embedding service unavailable")
         return cls._ollama_pool
-
-    @classmethod
-    def _get_embedding_client(cls) -> EmbeddingClient:
-        """
-        Get singleton embedding client based on environment configuration.
-        
-        Uses EmbeddingProviderFactory to create the appropriate client
-        (Ollama or Gemini) based on EMBEDDING_PROVIDER env var.
-        
-        Returns:
-            Configured embedding client instance.
-            
-        Raises:
-            ValueError: If configuration is invalid.
-            EmbeddingError: If client initialization fails.
-        """
-        if cls._embedding_client is None:
-            try:
-                cls._embedding_client = EmbeddingProviderFactory.from_env()
-                logger.info("Embedding client initialized successfully")
-            except ValueError as e:
-                logger.error(f"Embedding client configuration error: {str(e)}")
-                raise
-            except Exception as e:
-                logger.error(f"Embedding client initialization failed: {str(e)}")
-                raise EmbeddingError("Embedding service initialization error") from e
-        return cls._embedding_client
 
     def _ensure_collection(self):
         if not self.qclient.collection_exists(self.collection_name):
@@ -462,27 +426,12 @@ class SearchSystem:
             return []
 
     def _generate_query_embedding(self, query: str, embedding_model: str) -> List[float]:
-        """
-        Generate embedding for a query string.
-        
-        Uses the configured embedding provider (Ollama or Gemini).
-        The embedding_model parameter is kept for backward compatibility
-        but may be ignored by some providers (e.g., Gemini uses env config).
-        
-        Args:
-            query: Query string to embed.
-            embedding_model: Model name (used by Ollama, ignored by Gemini).
-            
-        Returns:
-            Embedding vector as list of floats.
-            
-        Raises:
-            EmbeddingError: If embedding generation fails.
-        """
         try:
-            # Use the embedding client abstraction
-            embedding = self.embedding_client.embed_one(query)
-            logger.debug(f"Generated embedding for query: {query[:50]}... (dim={len(embedding)})")
+            embedding = self.oclient.embeddings(
+                model=embedding_model,
+                prompt=query
+            )['embedding']
+            logger.debug(f"Generated embedding for query: {query[:50]}...")
             return embedding
         except Exception as e:
             logger.error(f"Embedding generation failed: {str(e)}")

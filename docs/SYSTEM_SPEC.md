@@ -308,12 +308,23 @@ QDRANT_HOST=127.0.0.1
 QDRANT_FORCE_IGNORE_SSL=false
 ```
 
-**Embedding & Ollama**
+**Embedding providers**
 
 ```env
+# Embedding provider selection
+EMBEDDING_PROVIDER=ollama
+
+# Ollama configuration (default provider)
 OLLAMA_HOST=http://your-ollama-host:11434
 DEFAULT_EMBEDDING_MODEL=mxbai-embed-large
 DEFAULT_VECTOR_SIZE=1024
+
+# Gemini configuration (optional)
+# GEMINI_API_KEY should be provided securely via environment/secret manager
+GEMINI_API_KEY=
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
+GEMINI_EMBEDDING_TASK_TYPE=RETRIEVAL_QUERY
+GEMINI_EMBEDDING_DIM=768
 ```
 
 #### 2.3.1 Qdrant Configuration Precedence
@@ -350,11 +361,13 @@ From `app/requirements.txt`:
 - `pydantic>=1.8.2` – data validation
 - `python-dotenv>=0.19.0` – `.env` loading
 - `python-json-logger>=2.0.7` – structured logging
+- `requests>=2.28.0` – HTTP client for Gemini API
 
 External services:
 
 - **Qdrant** – vector database.
-- **Ollama** – embedding service.
+- **Ollama** – embedding service (default provider).
+- **Gemini API** – managed text embedding service from Google.
 
 
 ## 3. Implementation Specification
@@ -407,7 +420,8 @@ async def add_correlation_id(request: Request, call_next):
 #### 3.2.1 Responsibilities
 
 - Manage Qdrant clients (dev/prod pools and custom per-request clients).
-- Manage Ollama client for embedding generation.
+- Manage embedding clients for query-time embeddings via a provider abstraction
+  (Ollama by default, optional Gemini).
 - Enforce configuration rules (e.g. no mixing `use_production` with custom
   Qdrant parameters).
 - Create collections if missing, with correct vector configuration.
