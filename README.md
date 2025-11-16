@@ -596,9 +596,9 @@ Returns array of result arrays (one per query).
 
 ## 📖 Documentation
 
-- [Quick Reference Guide](QUICK_TEST_REFERENCE.md) - Common usage patterns
-- [Test Documentation](TEST_DOCUMENTATION.md) - Detailed test suite information
-- [Filtering Examples](FILTERING_EXAMPLES.md) - Advanced filtering patterns
+ - [System & API Specification](docs/SYSTEM_SPEC.md) - Architecture, technical details, and implementation notes
+ - [Quick Test Reference](docs/QUICK_TEST_REFERENCE.md) - Common usage patterns and key test examples
+ - [Test Documentation](docs/TEST_DOCUMENTATION.md) - Detailed test suite information
 
 ## 🤝 Contributing
 
