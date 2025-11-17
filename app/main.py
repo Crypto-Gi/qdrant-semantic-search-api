@@ -116,6 +116,76 @@ def validate_production_config():
 validate_production_config()
 # ===============================
 
+# ======== Content Cleaning Utilities ========
+import re
+
+def clean_whitespace_from_content(text: str) -> str:
+    """
+    Clean excessive whitespace from markdown content to reduce token usage.
+    
+    This function:
+    - Collapses multiple consecutive spaces to a single space
+    - Removes trailing spaces from lines
+    - Preserves newlines and basic structure
+    - Does NOT collapse newlines (preserves paragraph breaks)
+    
+    Args:
+        text: Raw content string with potential excessive whitespace
+        
+    Returns:
+        Cleaned content string with normalized whitespace
+        
+    Example:
+        Input:  "| Column1     |     Column2     |"
+        Output: "| Column1 | Column2 |"
+    """
+    # Handle None, empty string, or non-string types
+    if not text or not isinstance(text, str):
+        return text
+    
+    # Collapse multiple spaces to single space (but preserve newlines)
+    text = re.sub(r' {2,}', ' ', text)
+    
+    # Remove trailing spaces from each line
+    text = re.sub(r' +\n', '\n', text)
+    
+    # Remove leading spaces from each line (optional, preserves indentation if removed)
+    # text = re.sub(r'\n +', '\n', text)
+    
+    return text.strip()
+
+
+def clean_response_content(results: List[List[Dict]]) -> List[List[Dict]]:
+    """
+    Post-process search results to clean whitespace from content fields.
+    
+    This reduces token usage for LLM consumption while preserving readability
+    and structure. Applied at query time to avoid re-indexing.
+    
+    Args:
+        results: Nested list of search results from batch_search
+        
+    Returns:
+        Same structure with cleaned content fields
+    """
+    for query_results in results:
+        for result in query_results:
+            # Clean combined_page field (context window results)
+            if 'combined_page' in result and result['combined_page']:
+                result['combined_page'] = clean_whitespace_from_content(result['combined_page'])
+            
+            # Clean content field (single page results)
+            if 'content' in result and result['content']:
+                result['content'] = clean_whitespace_from_content(result['content'])
+            
+            # Clean center_page field if present
+            if 'center_page' in result and result['center_page']:
+                result['center_page'] = clean_whitespace_from_content(result['center_page'])
+    
+    return results
+
+# ============================================
+
 # ======== API Key Authentication ========
 security = HTTPBearer(auto_error=False)
 
@@ -796,7 +866,11 @@ async def search(request: Request, search_request: SearchRequest, authenticated:
             embedding_model=search_request.embedding_model
         )
         
-        logger.debug("Search results generated", extra={
+        # Clean whitespace from content to reduce token usage
+        results = clean_response_content(results)
+        
+        logger.info("Search completed successfully", extra={
+            "correlation_id": correlation_id,
             "result_count": sum(len(r) for r in results)
         })
         return {"results": results}

@@ -488,10 +488,35 @@ DEBUG=false
 
 ## 🐳 Deployment
 
-### Docker Compose (Recommended)
+### Environment configuration (.env)
+
+The service is configured entirely via environment variables. A sample file is provided as `tamplate.env`.
 
 ```bash
-# Start service
+cp tamplate.env .env
+# Edit .env with your Qdrant, Ollama/Gemini, and API key settings
+```
+
+The `.env` file is **not** baked into the Docker image. You mount it at runtime using `--env-file` or `env_file` in `docker-compose.yml`.
+
+### Docker Compose (Recommended)
+
+Using the published image from GitHub Container Registry:
+
+```yaml
+version: "3.9"
+
+services:
+  search_api:
+    image: ghcr.io/crypto-gi/docsplorer-search-api:v3.0.1
+    env_file: .env
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+```
+
+```bash
+# Start service (recommended way)
 docker compose up -d
 
 # View logs
@@ -504,19 +529,34 @@ docker compose restart
 docker compose down
 ```
 
-### Manual Docker Build
+If you prefer to build the image locally instead of pulling it:
+
+```yaml
+services:
+  search_api:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    env_file: .env
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+```
+
+### Run with plain Docker
+
+You can also run the service directly with `docker run` using the published image:
 
 ```bash
-# Build image
-docker build -t qdrant-search-api ./app
-
-# Run container
 docker run -d \
   --name search_api \
   -p 8001:8000 \
   --env-file .env \
-  qdrant-search-api
+  ghcr.io/crypto-gi/docsplorer-search-api:v3.0.1
 ```
+
+This is convenient for quick experiments, but for longer-running or production setups,
+**Docker Compose is the recommended option**.
 
 ### Production Deployment Checklist
 
