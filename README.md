@@ -24,7 +24,7 @@
 
 ### Core Capabilities
 - 🔍 **Semantic Search** - Vector similarity search using Qdrant
-- 🤖 **Multiple Embedding Models** - Support for granite-embedding:30m, bge-m3, and more via Ollama
+- 🤖 **Multiple Embedding Providers** - Ollama (granite-embedding:30m, bge-m3, etc.) or Google Gemini embeddings
 - 🎯 **Advanced Filtering** - Text matching, range filters, and combined conditions
 - 📄 **Context Windows** - Retrieve surrounding pages for better context
 - 🔄 **Batch Queries** - Process multiple search queries in a single request
@@ -37,6 +37,7 @@
 - ⚡ **Connection Pooling** - Efficient resource management
 - 🔄 **Auto-Restart** - Self-healing container configuration
 - 🧪 **Comprehensive Tests** - 50+ automated test cases (98% pass rate)
+- 💰 **Token Optimization** - Automatic whitespace cleaning reduces LLM costs by 98.8%
 
 ### API-Driven Design
 - 🎛️ **Per-Request Configuration** - Override Qdrant URL, API key, and embedding model per request
@@ -53,7 +54,7 @@
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/yourusername/qdrant-semantic-search-api.git
+git clone https://github.com/Crypto-Gi/qdrant-semantic-search-api.git
 cd qdrant-semantic-search-api
 ```
 
@@ -84,13 +85,19 @@ docker compose up -d
 
 ### 4. Verify Health
 ```bash
+# If API_KEY_ENABLED=true in .env, include Authorization header
+curl -H "Authorization: Bearer YOUR_API_KEY" http://localhost:8001/health
+
+# Or if API_KEY_ENABLED=false
 curl http://localhost:8001/health
 ```
 
 ### 5. Run Your First Search
 ```bash
+# If API_KEY_ENABLED=true, include Authorization header
 curl -X POST http://localhost:8001/search \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "collection_name": "your_collection",
     "search_queries": ["your search query"],
@@ -172,6 +179,7 @@ curl -X POST http://localhost:8001/search \
 ```bash
 curl -X POST http://localhost:8001/search/filenames \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "query": "ecos 9.3",
     "collection_name": "content",
@@ -183,6 +191,7 @@ curl -X POST http://localhost:8001/search/filenames \
 ```bash
 curl -X POST http://localhost:8001/search/filenames \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "query": "ECOS_9.3.7.0_Release_Notes_RevB",
     "collection_name": "content",
@@ -195,6 +204,7 @@ curl -X POST http://localhost:8001/search/filenames \
 ```bash
 curl -X POST http://localhost:8001/search/filenames \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "query": "release notes",
     "collection_name": "my_collection",
@@ -255,6 +265,7 @@ curl -X POST http://localhost:8001/search/filenames \
 ```bash
 curl -X POST http://localhost:8001/search \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "collection_name": "documents",
     "search_queries": ["machine learning"],
@@ -266,10 +277,10 @@ curl -X POST http://localhost:8001/search \
 ```bash
 curl -X POST http://localhost:8001/search \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "collection_name": "documents",
     "search_queries": ["installation guide"],
-    "embedding_model": "bge-m3",
     "filter": {
       "metadata.filename": {"match_text": "ECOS"},
       "metadata.page_number": {"gte": 1, "lte": 10}
@@ -283,6 +294,7 @@ curl -X POST http://localhost:8001/search \
 ```bash
 curl -X POST http://localhost:8001/search \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "collection_name": "my_collection",
     "search_queries": ["query"],
@@ -295,6 +307,14 @@ curl -X POST http://localhost:8001/search \
 ### GET /health
 
 **Check service health and dependency status.**
+
+**Note:** If `API_KEY_ENABLED=true`, this endpoint requires authentication.
+
+#### Example Request
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" http://localhost:8001/health
+```
 
 #### Response
 
@@ -508,7 +528,7 @@ version: "3.9"
 
 services:
   search_api:
-    image: ghcr.io/crypto-gi/docsplorer-search-api:v3.0.1
+    image: ghcr.io/crypto-gi/docsplorer-search-api:v3.0.2
     env_file: .env
     ports:
       - "8001:8000"
@@ -552,7 +572,7 @@ docker run -d \
   --name search_api \
   -p 8001:8000 \
   --env-file .env \
-  ghcr.io/crypto-gi/docsplorer-search-api:v3.0.1
+  ghcr.io/crypto-gi/docsplorer-search-api:v3.0.2
 ```
 
 This is convenient for quick experiments, but for longer-running or production setups,
@@ -597,12 +617,13 @@ This is convenient for quick experiments, but for longer-running or production s
 ### Manual Testing
 
 ```bash
-# Test health endpoint
-curl http://localhost:8001/health
+# Test health endpoint (with API key if enabled)
+curl -H "Authorization: Bearer YOUR_API_KEY" http://localhost:8001/health
 
 # Test basic search
 curl -X POST http://localhost:8001/search \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "collection_name": "test",
     "search_queries": ["test query"],
@@ -711,7 +732,7 @@ Contributions are welcome! Please follow these guidelines:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/qdrant-semantic-search-api.git
+git clone https://github.com/Crypto-Gi/qdrant-semantic-search-api.git
 cd qdrant-semantic-search-api
 
 # Create virtual environment
@@ -739,12 +760,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/qdrant-semantic-search-api/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/qdrant-semantic-search-api/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Crypto-Gi/qdrant-semantic-search-api/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Crypto-Gi/qdrant-semantic-search-api/discussions)
 
 ## 🗺️ Roadmap
 
-- [ ] Add authentication and authorization
+- [x] Add authentication and authorization (Bearer token API keys)
+- [x] Query-time content cleaning for token optimization
 - [ ] Implement rate limiting
 - [ ] Add caching layer
 - [ ] Support for more embedding models
